@@ -3,25 +3,28 @@ pragma solidity ^0.8.13;
 
 contract DegenLink {
     mapping(address => uint) internal recipientAmountMap;
-    mapping(address => address) internal senderRecipientMap;
+    mapping(address => mapping(address => bool)) internal senderRecipientMap;
 
     function addTip(address recipient) external payable {
         if (msg.value == 0) revert();
         recipientAmountMap[recipient] = msg.value;
-        senderRecipientMap[msg.sender] = recipient;
+        senderRecipientMap[msg.sender][recipient] = true;
     }
 
-    function withdrawTip() external {
-        uint amount = recipientAmountMap[msg.sender];
+    function withdrawTip(address account) external {
+        uint amount = recipientAmountMap[account];
         if (amount == 0) revert();
-        recipientAmountMap[msg.sender] = 0;
-        address(msg.sender).call{value: amount}("");
+        recipientAmountMap[account] = 0;
+        (bool s, ) = address(account).call{value: amount}("");
+        if (!s) revert();
     }
 
-    function invalidateTip() external {
-        uint amount = recipientAmountMap[senderRecipientMap[msg.sender]];
-        recipientAmountMap[senderRecipientMap[msg.sender]] = 0;
-        senderRecipientMap[msg.sender] = address(0);
-        address(msg.sender).call{value: amount}("");
+    function invalidateTip(address recipient) external {
+        uint amount = recipientAmountMap[recipient];
+        recipientAmountMap[recipient] = 0;
+        if (senderRecipientMap[msg.sender][recipient]) {
+            (bool s, ) = address(msg.sender).call{value: amount}("");
+            if (!s) revert();
+        }
     }
 }
